@@ -12,9 +12,18 @@ class GeneticFeatures:
     This class implements a genetic algorithm for feature selection.
     """
 
-    def __init__(self, data, target, population_size, n_parents, model, mutation_rate, n_gen) -> None:
+    def __init__(self, features, target, population_size, n_parents, model, mutation_rate, n_gen) -> None:
+        """
+        Initalizes a genetic features algorithm class.
+
+        Parameters:
+            features: matrix of predictive features
+            target: target response
+            population_size: 
+
+        """
         self.size = population_size
-        self.n_features = data.shape[1]
+        self.n_features = features.shape[1]
         self.population = []
         self.model = model
         self.mutation_rate = mutation_rate
