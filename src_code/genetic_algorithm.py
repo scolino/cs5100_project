@@ -3,8 +3,11 @@ The code in this file implements a genetic algorithm used for feature selection 
 """
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import mean_squared_error
+
 from random import randint
+
+np.random.seed(123)
 
 
 class GeneticFeatures:
@@ -19,7 +22,11 @@ class GeneticFeatures:
         Parameters:
             features: matrix of predictive features
             target: target response
-            population_size: 
+            population_size: number of possible solutions to generate
+            n_parents: 
+            model:
+            mutation_rate: percent of genes that randomly change
+            n_gen: number of generations to iterate through
 
         """
         self.size = population_size
@@ -30,57 +37,59 @@ class GeneticFeatures:
         self.n_parents = n_parents
         self.n_gen = n_gen
         self.best_scores = []
+        self.best_chromosomes = []
         
-
-        self.X_tr, self.X_te, self.Y_tr, self.Y_te = train_test_split(data, target, test_size=0.25, random_state=42)
+        self.X_tr, self.X_te, self.y_tr, self.y_te = train_test_split(features, target, test_size=0.2, random_state=123)
 
 
     def initialize_population(self):
         """
-        Initializes a random population by selecting 30 percent of features to be turned on.
+        Initializes a random population by selecting 30 percent of features to be turned off for each chromosome.
         """
-        for i in range(self.size):
-            chromosome = np.ones(self.n_features, dtype=np.bool)     
+        for _ in range(self.size):
+            chromosome = np.ones(self.n_features, dtype=bool)     
             chromosome[:int(0.3*self.n_features)]=False             
             np.random.shuffle(chromosome)
-        self.population.append(chromosome)
+            self.population.append(chromosome)
         
 
     def fitness_score(self):
         scores = []
         for chromosome in self.population:
-            self.model.fit(self.X_tr.iloc[:,chromosome],self.Y_tr)         
+            # Fit and predict on the given model
+            self.model.fit(self.X_tr.iloc[:,chromosome],self.y_tr)         
             predictions = self.model.predict(self.X_te.iloc[:,chromosome])
-            # should this be changed
-            scores.append(accuracy_score(self.y_te,predictions))
+
+            # fitness determined my mean square error
+            scores.append(mean_squared_error(self.y_te,predictions))
+
         scores, temp_pop = np.array(scores), np.array(self.population) 
         inds = np.argsort(scores) 
 
-        # Population get sorted by fitness scores                                   
-        self.fitness_scores, self.population = list(scores[inds][::-1]), list(temp_pop[inds,:][::-1]) 
+        # Population get sorted by fitness scores                                 
+        self.fitness_scores, self.population = list(scores[inds]), list(temp_pop[inds,:]) 
 
-        self.best_scores.append(scores[:1])
+        self.best_chromosomes.append(self.population[0])
+        self.best_scores.append(self.fitness_scores[0])
 
 
     def selection(self):
         """
-        Gets the best fit "parents". Update function to work with class.
+        Selects the best fit parents to create the next generation. Population is 
+        already sorted by fitness_score function.
         """
-        population_nextgen = []
-        for i in range(self.n_parents):
-            population_nextgen.append(self.population[i])
-        
-        return population_nextgen
+        return self.population[:self.n_parents]
 
 
     def crossover(self):
         """
-        Double check this function
+        Creates a new chromosome by selecting half the genes of the first chromosome and half the genes of the second
+        chromosome.
         """
-        pop_after_selection = self.selection()
-        pop_next_gen = pop_after_selection
-        for i in range(0,len(pop_after_selection),2):
-            new_par = []
+        pop_next_gen = self.selection()
+        population_size = len(pop_next_gen)
+
+        for i in range(0,population_size-1):
             child_1 , child_2 = pop_next_gen[i] , pop_next_gen[i+1]
             new_par = np.concatenate((child_1[:len(child_1)//2],child_2[len(child_1)//2:]))
             pop_next_gen.append(new_par)
@@ -89,33 +98,45 @@ class GeneticFeatures:
 
 
     def mutation(self):
+        """
+        Randomly change half the chromosomes.
+        """
         current_population = self.crossover()   
-        mutation_range = int(self.mutation_rate*self.n_feat)
+
+        # Get number of chromosomes to mutate
+        mutation_range = int(self.mutation_rate*self.n_features)
         pop_next_gen = []
         for n in range(0,len(current_population)):
             chromo = current_population[n]
-            rand_posi = [] 
-            for i in range(0,mutation_range):
-                pos = randint(0,self.n_feat-1)
-                rand_posi.append(pos)
-            for j in rand_posi:
-                chromo[j] = not chromo[j]  
+
+            # Sample chromosomes to change
+            indices = np.arange(0,self.n_features - 1)
+            np.random.shuffle(indices)
+            selected_chromosomes = indices[:mutation_range]
+
+            for pos in selected_chromosomes:
+                chromo[pos] = not chromo[pos]  
+  
             pop_next_gen.append(chromo)
     
         self.population = pop_next_gen
     
 
     def run(self):
-        best_chromo= []
-        best_score= []
-    
+        print("Starting Genetic Feature Selection")
+        self.initialize_population()
+
         for i in range(self.n_gen):
-            scores, pop_after_fit = self.fitness_score(population_nextgen)
-            population_nextgen = self.mutation()
-            best_chromo.append(pop_after_fit[0])
-            best_score.append(scores[0])
-            
-        return best_chromo,best_score
+            print(f"Running Generation {i}")
+            self.fitness_score()
+            print(f"Best Fitness score: {self.fitness_scores[0]}\n")
+            self.mutation()
+        
+        print("Genetic Feature Selection Complete")
 
     
-
+    def get_fitness_scores(self):
+        return self.best_scores
+    
+    def get_last_chromosome(self):
+        return self.best_chromosomes[-1]
