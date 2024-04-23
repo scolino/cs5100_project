@@ -38,6 +38,8 @@ class GeneticFeatures:
         self.n_gen = n_gen
         self.best_scores = []
         self.best_chromosomes = []
+        self.average_score = []
+        self.selected_genes = np.zeros(self.n_features)
         
         self.X_tr, self.X_te, self.y_tr, self.y_te = train_test_split(features, target, test_size=0.2, random_state=123)
 
@@ -61,7 +63,7 @@ class GeneticFeatures:
             predictions = self.model.predict(self.X_te.iloc[:,chromosome])
 
             # fitness determined my mean square error
-            scores.append(mean_squared_error(self.y_te,predictions))
+            scores.append(mean_squared_error(self.y_te,predictions, squared=False))
 
         scores, temp_pop = np.array(scores), np.array(self.population) 
         inds = np.argsort(scores) 
@@ -71,26 +73,24 @@ class GeneticFeatures:
 
         self.best_chromosomes.append(self.population[0])
         self.best_scores.append(self.fitness_scores[0])
+        self.average_score.append(sum(self.fitness_scores)/ len(self.fitness_scores))
+
+        # Keep track of seelcted gemes in best chromosomes
+
+    def track_genes(self, chromosome):
+        pass
 
 
-    def selection(self):
-        """
-        Selects the best fit parents to create the next generation. Population is 
-        already sorted by fitness_score function.
-        """
-        return self.population[:self.n_parents]
-
-
-    def crossover(self):
+    def selection_crossover(self):
         """
         Creates a new chromosome by selecting half the genes of the first chromosome and half the genes of the second
         chromosome.
         """
-        pop_next_gen = self.selection()
-        population_size = len(pop_next_gen)
+        pop_next_gen = []
+        parents = self.population[:self.n_parents]
 
-        for i in range(0,population_size-1):
-            child_1 , child_2 = pop_next_gen[i] , pop_next_gen[i+1]
+        for i in range(0,self.n_parents-1):
+            child_1 , child_2 = parents[i] , parents[i+1]
             new_par = np.concatenate((child_1[:len(child_1)//2],child_2[len(child_1)//2:]))
             pop_next_gen.append(new_par)
         
@@ -101,7 +101,7 @@ class GeneticFeatures:
         """
         Randomly change half the chromosomes.
         """
-        current_population = self.crossover()   
+        current_population = self.selection_crossover()   
 
         # Get number of chromosomes to mutate
         mutation_range = int(self.mutation_rate*self.n_features)
@@ -119,7 +119,7 @@ class GeneticFeatures:
   
             pop_next_gen.append(chromo)
     
-        self.population = pop_next_gen
+        self.population = self.population[:self.n_parents] + pop_next_gen
     
 
     def run(self):
@@ -127,9 +127,7 @@ class GeneticFeatures:
         self.initialize_population()
 
         for i in range(self.n_gen):
-            print(f"Running Generation {i}")
             self.fitness_score()
-            print(f"Best Fitness score: {self.fitness_scores[0]}\n")
             self.mutation()
         
         print("Genetic Feature Selection Complete")
@@ -140,3 +138,11 @@ class GeneticFeatures:
     
     def get_last_chromosome(self):
         return self.best_chromosomes[-1]
+    
+    def run_best_chromosome(self):
+        chromosome = self.best_chromosomes[-1]
+        # Fit and predict on the given model
+        self.model.fit(self.X_tr.iloc[:,chromosome],self.y_tr)         
+        predictions = self.model.predict(self.X_te.iloc[:,chromosome])
+
+        return self.model
